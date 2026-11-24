@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blockchain Voting System</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #homeBox button {
+    display: block !important;
+    width: 100% !important;
+    margin-bottom: 12px !important;
+    position: static !important;
+    float: none !important;
+    box-sizing: border-box;
+  }
+  .list-box p { 
+        background:#f5f5f5; padding:10px; margin:5px 0; border-radius:6px; font-weight:bold; 
+   }
+  .main-row { 
+        display: flex; gap: 15px; align-items: stretch; 
+  }
+  .main-row .card { 
+        flex: 1; margin: 0 !important; min-width: 0; 
+   }
+  @media (max-width: 700px) {
+    .main-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🗳️ Blockchain Voting System</h1>
+  <p>Secure - Transparent - Tamper-Proof</p>
+
+  <div class="main-row">
+    <div class="card" id="voterBox" style="display:none">
+      <h3>Voter Login</h3>
+      <input id="voterId" placeholder=" Enter Voter ID ">
+      <input id="voterPass" type="password" placeholder="Enter Password">
+      <button onclick="voterLogin()">Login</button>
+      <p id="loginMsg"></p>
+      <button onclick="showHome()" style="background:#777;">Back</button>
+    </div>
+
+    <div class="card" id="homeBox" style="text-align:center">
+      <h3>Welcome!</h3>
+      <br>
+      <button onclick="showVoter()" style="background:#2196F3; padding:15px; font-size:16px;">👤 Voter Login</button>
+      <button onclick="showAdmin()" style="background:#FF5722; padding:15px; font-size:16px;">🛡️ Admin Login</button>
+    </div>
+
+    <div class="card" id="voteBox" style="display:none">
+      <h3>Cast Your Vote</h3>
+      <p>Welcome <b id="welcomeVoter"></b></p>
+      <select id="candidate"></select>
+      <button id="voteBtn" onclick="vote()">Vote Now</button>
+      <p id="msg" style="word-break:break-all;"></p>
+      <button onclick="showHome()" style="background:#777;">Logout</button>
+    </div>
+
+    <div class="card" id="resultsBox">
+      <h3>📊 Live Results</h3>
+      <div id="resultsList"><p>No votes yet</p></div>
+      <p>Blockchain Valid: <b id="valid">-</b></p>
+      <br>
+      <button onclick="loadResults()">Refresh Results</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentVoter = "";
+
+function hideAll() {
+  ["homeBox","voterBox","voteBox"].forEach(id => {
+    document.getElementById(id).style.display = "none";
+  });
+}
+function showHome() {
+  currentVoter = ""; // FIX 1: Logout la - Voter ah Clear panniten!
+  document.getElementById("voterId").value = "";
+  document.getElementById("voterPass").value = "";
+  document.getElementById("loginMsg").innerText = "";
+  document.getElementById("msg").innerText = "";
+  hideAll();
+  document.getElementById("homeBox").style.display = "block";
+  loadResults();
+}
+function showVoter() {
+  hideAll();
+  document.getElementById("voterBox").style.display = "block";
+}
+function showAdmin() {
+  window.location.href = "/admin.html";
+}
+
+async function voterLogin() {
+  let voterId = document.getElementById("voterId").value.trim();
+  let password = document.getElementById("voterPass").value.trim();
+  let res = await fetch("/api/voterLogin", { method: "POST", body: `voterId=${encodeURIComponent(voterId)}&password=${encodeURIComponent(password)}` });
+  let text = await res.text();
+  if (text === "OK") {
+    currentVoter = voterId;
+    document.getElementById("loginMsg").innerText = "";
+    document.getElementById("msg").innerText = "";
+    document.getElementById("voteBtn").disabled = false; 
+    document.getElementById("voteBtn").innerText = "Vote Now";
+    hideAll();
+    document.getElementById("voteBox").style.display = "block";
+    document.getElementById("welcomeVoter").innerText = voterId;
+    loadCandidatesForVote();
+  } else {
+    document.getElementById("loginMsg").innerText = "Wrong ID / Password!";
+  }
+}
+
+async function loadCandidatesForVote() {
+  let res = await fetch("/api/candidates");
+  let list = await res.json();
+  let sel = document.getElementById("candidate");
+  sel.innerHTML = list.length ? list.map(c => `<option value="${c}">${c}</option>`).join("") : `<option value="">No Parties Yet - Ask Admin</option>`;
+}
+
+async function vote() {
+  let candidate = document.getElementById("candidate").value;
+  if (!candidate) { alert("Party select pannu!"); return; }
+  let res = await fetch("/api/vote", { method: "POST", body: `voterId=${encodeURIComponent(currentVoter)}&candidate=${encodeURIComponent(candidate)}` });
+  let msg = await res.text();
+  document.getElementById("msg").innerText = msg;
+
+  if (msg.includes("Vote Recorded")) {
+    document.getElementById("voteBtn").disabled = true;
+    document.getElementById("voteBtn").innerText = "Voted ✅";
+  }
+  loadResults();
+}
+
+async function loadResults() {
+  let res = await fetch("/api/results");
+  let data = await res.json();
+  let html = "";
+  for (let name in data.results) html += `<p>${name} : <b>${data.results[name]}</b></p>`;
+  if (html === "") html = "<p>No votes yet</p>";
+  document.getElementById("resultsList").innerHTML = html;
+  document.getElementById("valid").innerText = data.valid ? "Valid ✅" : "Invalid ❌";
+}
+loadResults();
+</script>
+</body>
+</html>

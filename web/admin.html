@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel - Blockchain Voting</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .container { 
+         max-width: 800px !important; width: 92% !important; margin: 20px auto !important;
+   }
+  #loginBox { 
+          max-width: 420px !important; margin: 0 auto !important; 
+   }
+  button { 
+       display:block !important; width:100% !important; margin-bottom:8px !important; 
+   }
+  .list-box p { 
+       background:#f5f5f5; padding:8px; margin:4px 0; border-radius:6px; font-weight:bold; font-size:14px; 
+   }
+  .hash-table { 
+        width:100%; border-collapse:collapse; font-size:12px; 
+   }
+  .hash-table th, .hash-table td { 
+        border:1px solid #ddd; padding:6px; text-align:left; 
+   }
+  .hash-table th { 
+         background:#333; color:white; 
+   }
+  .hash-cell { 
+         word-break:break-all; font-family:monospace; font-size:10px; color:#555;
+   }
+  .admin-grid { 
+         display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start;
+   }
+  .admin-grid .card {
+         margin: 0 !important; min-width: 0; padding: 15px !important; 
+   }
+  h1 { 
+         font-size: 24px !important; margin-bottom: 5px !important; 
+  }
+  @media (max-width: 700px) {
+    .admin-grid { 
+          grid-template-columns: 1fr;
+       }
+    .container { 
+          max-width: 95% !important;
+      }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🛡️ Admin Panel</h1>
+  <p>Secure - Transparent - Tamper-Proof</p>
+
+  <div class="card" id="loginBox">
+    <h3>Admin Login</h3>
+    <input id="adminPass" type="password" placeholder="Admin Password">
+    <button onclick="checkAdmin()" style="background:#FF5722; padding:15px;">Login</button>
+    <p id="adminMsg"></p>
+    <button onclick="window.location.href='/'" style="background:#777;">Back to Home</button>
+  </div>
+
+  <div id="adminPanel" style="display:none">
+    <div class="admin-grid">
+      <div class="card">
+        <h3>🏛️ Add New Party</h3>
+        <input id="newCandidate" placeholder="Enter party name">
+        <button onclick="addCandidate()" style="background:#4CAF50;">Add Party</button>
+        <p id="addMsg"></p>
+        <h4>Current Parties:</h4>
+        <div id="candidateList" class="list-box"><p>No parties yet</p></div>
+      </div>
+
+      <div class="card">
+        <h3>👤 Add New Voter</h3>
+        <input id="newVoterId" placeholder="Enter Voter ID">
+        <input id="newVoterPass" type="password" placeholder="Enter password">
+        <button onclick="addVoter()" style="background:#2196F3;">Add Voter</button>
+        <p id="voterAddMsg"></p>
+        <h4>Current Voters:</h4>
+        <div id="voterList" class="list-box"><p>No voters yet</p></div>
+      </div>
+
+      <div class="card">
+        <h3>📊 Live Results</h3>
+        <div id="resultsList"><p>No votes yet</p></div>
+        <p>Blockchain Valid: <b id="valid">-</b></p>
+        <button onclick="loadResults()">Refresh Results</button>
+      </div>
+
+      <div class="card">
+        <h3>🔗 Blockchain</h3>
+       
+        <div style="overflow-x:auto;">
+          <table class="hash-table">
+            <thead>
+              <tr><th>Voter ID</th><th>Party</th><th>Block Hash</th><th>Prev Hash</th></tr>
+            </thead>
+            <tbody id="hashTable">
+              <tr><td colspan="4">No votes yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <button onclick="loadHashes()" style="background:#9C27B0; margin-top:10px;">Refresh Blockchain</button>
+      </div>
+    </div>
+    <br>
+    <button onclick="logout()" style="background:#777;">Logout</button>
+  </div>
+</div>
+
+<script>
+function checkAdmin() {
+  let pass = document.getElementById("adminPass").value;
+  if (pass !== "admin123") {
+    document.getElementById("adminMsg").innerText = "Wrong Password!";
+    return;
+  }
+  document.getElementById("loginBox").style.display = "none";
+  document.getElementById("adminPanel").style.display = "block";
+  loadAdminCandidates();
+  loadVoters();
+  loadResults();
+  loadHashes();
+}
+function logout() {
+  document.getElementById("adminPanel").style.display = "none";
+  document.getElementById("loginBox").style.display = "block";
+  document.getElementById("adminPass").value = "";
+}
+async function addCandidate() {
+  let name = document.getElementById("newCandidate").value.trim();
+  if (!name) { alert("Party peru podu!"); return; }
+  let res = await fetch("/api/addCandidate", { method: "POST", body: "name=" + encodeURIComponent(name) });
+  document.getElementById("addMsg").innerText = await res.text();
+  document.getElementById("newCandidate").value = "";
+  loadAdminCandidates();
+}
+async function addVoter() {
+  let id = document.getElementById("newVoterId").value.trim();
+  let pass = document.getElementById("newVoterPass").value.trim();
+  if (!id || !pass) { alert("Voter ID & Password podu!"); return; }
+  let res = await fetch("/api/addVoter", { method: "POST", body: `voterId=${encodeURIComponent(id)}&password=${encodeURIComponent(pass)}` });
+  document.getElementById("voterAddMsg").innerText = await res.text();
+  document.getElementById("newVoterId").value = "";
+  document.getElementById("newVoterPass").value = "";
+  loadVoters();
+}
+async function loadAdminCandidates() {
+  let res = await fetch("/api/candidates");
+  let list = await res.json();
+  document.getElementById("candidateList").innerHTML = list.length ? list.map(c => `<p>${c}</p>`).join("") : "<p>No parties yet</p>";
+}
+async function loadVoters() {
+  let res = await fetch("/api/voters");
+  let list = await res.json();
+  document.getElementById("voterList").innerHTML = list.length ? list.map(v => `<p>${v}</p>`).join("") : "<p>No voters yet</p>";
+}
+async function loadResults() {
+  let res = await fetch("/api/results");
+  let data = await res.json();
+  let html = "";
+  for (let name in data.results) html += `<p>${name} : <b>${data.results[name]}</b></p>`;
+  if (html === "") html = "<p>No votes yet</p>";
+  document.getElementById("resultsList").innerHTML = html;
+  document.getElementById("valid").innerText = data.valid ? "Valid ✅" : "Invalid ❌";
+}
+async function loadHashes() {
+  let res = await fetch("/api/adminHashes");
+  let data = await res.json();
+  if (!data.length) {
+    document.getElementById("hashTable").innerHTML = `<tr><td colspan="4">No votes yet</td></tr>`;
+    return;
+  }
+  document.getElementById("hashTable").innerHTML = data.map(d => 
+    `<tr><td><b>${d.voterId}</b></td><td>${d.candidate}</td><td class="hash-cell">${d.hash}</td><td class="hash-cell">${d.previousHash}</td></tr>`
+  ).join("");
+}
+</script>
+</body>
+</html>
